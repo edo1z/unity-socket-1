@@ -15,20 +15,30 @@ public class MyTcpServer : MonoBehaviour
     private static NetworkStream network_stream;
     private static bool active = false;
     private static string messages = string.Empty;
+    private static GUIStyle gui_style = new GUIStyle();
+    private static Rect rect = new Rect();
+    private static Color txt_color = new Color(0.2f, 0.9f, 0.2f, 1.0f);
 
     private void OnGUI()
     {
         if (active)
         {
-            GUILayout.TextArea(messages);
+            gui_style.alignment = TextAnchor.MiddleCenter;
+            gui_style.fontSize = 30;
+            gui_style.normal.textColor = txt_color;
+            rect.x = Screen.width / 2;
+            rect.y = Screen.height / 2;
+            rect.width = 0;
+            rect.height = 0;
+            GUI.Label(rect, messages, gui_style);
         }
     }
 
     private void OnMouseDown()
     {
         MyTcpClient.OnInactive();
-        Debug.Log("Server Start...");
         activate();
+        messages = "Server Start...";
     }
 
     private void activate()
@@ -45,9 +55,9 @@ public class MyTcpServer : MonoBehaviour
         var ipAddress = IPAddress.Parse(ip_address);
         tcp_listener = new TcpListener(ipAddress, port);
         tcp_listener.Start();
-        Debug.Log("listening...");
+        messages = "listening...";
         tcp_client = tcp_listener.AcceptTcpClient();
-        Debug.Log("connected.");
+        messages = "connected.";
         network_stream = tcp_client.GetStream();
         while (true)
         {
@@ -59,14 +69,13 @@ public class MyTcpServer : MonoBehaviour
                 Task.Run(() => OnProcess());
                 break;
             }
-            var message = Encoding.UTF8.GetString(buffer, 0, count);
-            messages += message + "\n";
+            messages = Encoding.UTF8.GetString(buffer, 0, count);
         }
     }
 
     private static void OnDestroy()
     {
-        Debug.Log("server destroy.");
+        messages = "server destroy.";
         network_stream?.Dispose();
         tcp_client?.Dispose();
         tcp_listener?.Stop();

@@ -10,64 +10,85 @@ public class MyTcpClient : MonoBehaviour
     private static NetworkStream network_stream;
     private static bool is_connection;
     private static bool active = false;
-
+    private static string send_message = string.Empty;
     private static string message = string.Empty;
+    private static GUIStyle gui_style = new GUIStyle();
+    private static Rect rect = new Rect();
+    private static Color txt_color = new Color(0.2f, 0.5f, 1.0f, 1.0f);
 
     public void OnGUI()
     {
         if (active)
         {
+            rect.x = 10;
+            rect.y = 10;
+            rect.width = 200;
+            rect.height = 25;
+            send_message = GUI.TextField(rect, send_message, 100);
             if (!is_connection)
             {
-                GUILayout.Label("is not connect.");
-                return;
+                message = "is not connect.";
             }
-            message = GUILayout.TextField(message);
-            if (GUILayout.Button("Send!"))
+            rect.x += 200;
+            rect.width = 100;
+            if (GUI.Button(rect, "Send!") && is_connection)
             {
                 try
                 {
-                    var buffer = Encoding.UTF8.GetBytes(message);
+                    var buffer = Encoding.UTF8.GetBytes(send_message);
                     network_stream.Write(buffer, 0, buffer.Length);
-                    Debug.LogFormat(message);
+                    message = send_message;
+                    send_message = "";
                 }
                 catch
                 {
-                    Debug.LogError("transmission failed.");
+                    message = "transmission failed.";
                 }
             }
+            _show_message(message);
         }
+    }
+
+    private void _show_message(string msg)
+    {
+        gui_style.alignment = TextAnchor.MiddleCenter;
+        gui_style.fontSize = 30;
+        gui_style.normal.textColor = txt_color;
+        rect.x = Screen.width / 2;
+        rect.y = Screen.height / 2;
+        rect.width = 0;
+        rect.height = 0;
+        GUI.Label(rect, msg, gui_style);
     }
 
     private void OnMouseDown()
     {
         MyTcpServer.OnInactive();
-        Debug.Log("Client Start...");
         activate();
     }
 
     private void activate()
     {
-        if (!active)
+        if (!active || !is_connection)
         {
+            active = true;
             try
             {
                 tcp_client = new TcpClient(MyTcpServer.ip_address, MyTcpServer.port);
                 network_stream = tcp_client.GetStream();
                 is_connection = true;
-                active = true;
-                Debug.LogFormat("connected.");
+                message = "connected.";
             }
             catch (SocketException)
             {
-                Debug.LogError("connection failed.");
+                message = "connection failed.";
             }
         }
     }
 
     private static void OnDestroy()
     {
-        Debug.Log("server destroy.");
+        message = "server destroy.";
         tcp_client?.Dispose();
         network_stream?.Dispose();
     }
