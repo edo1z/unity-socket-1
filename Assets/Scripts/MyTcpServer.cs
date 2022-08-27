@@ -8,8 +8,8 @@ using UnityEngine;
 
 public class MyTcpServer : MonoBehaviour
 {
-    private static string ip_address = "127.0.0.1";
-    private static int port = 5555;
+    public static string ip_address = "127.0.0.1";
+    public static int port = 5555;
     private static TcpListener tcp_listener;
     private static TcpClient tcp_client;
     private static NetworkStream network_stream;
@@ -24,13 +24,14 @@ public class MyTcpServer : MonoBehaviour
         }
     }
 
-    public void OnMouseDown()
+    private void OnMouseDown()
     {
+        MyTcpClient.OnInactive();
         Debug.Log("Server Start...");
         activate();
     }
 
-    public void activate()
+    private void activate()
     {
         if (!active)
         {
