@@ -22,21 +22,21 @@ public class Server
     {
         try
         {
-          listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-          listener.Bind(new IPEndPoint(IPAddress.Any, port));
-          listener.Listen(1);
-          accept_receive_loop();
+            listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listener.Bind(new IPEndPoint(IPAddress.Any, port));
+            listener.Listen(1);
+            accept_receive_loop();
         }
         catch
         {
-          handler(new TcpEvent(TcpEventType.Listening, false, "server start failed."));
+            handler(new TcpEvent(TcpEventType.Listening, false, "server start failed."));
         }
     }
 
     private void accept_receive_loop()
     {
         handler(new TcpEvent(TcpEventType.Listening, true, "server listening..."));
-        while (true)
+        while (listener != null)
         {
             accept();
             receive();
@@ -66,7 +66,7 @@ public class Server
                     if (recv_size > 0)
                     {
                         msg = Encoding.UTF8.GetString(buffer, 0, recv_size);
-                        handler(new TcpEvent(TcpEventType.Received, true, "received: " + msg));
+                        handler(new TcpEvent(TcpEventType.Received, true, msg));
                     }
                     else
                     {
@@ -82,6 +82,25 @@ public class Server
         }
     }
 
+    public void send(string msg)
+    {
+        if (listener == null) return;
+        try
+        {
+            var buffer = Encoding.UTF8.GetBytes(msg);
+            for (int i = 0; i < sockets.Count; i++)
+            {
+                if (sockets[i] == null) continue;
+                sockets[i].Send(buffer, buffer.Length, SocketFlags.None);
+            }
+            handler(new TcpEvent(TcpEventType.Sent, true, msg));
+        }
+        catch
+        {
+            handler(new TcpEvent(TcpEventType.Sent, false, "send failed: " + msg));
+        }
+    }
+
     private void disconnect(int idx)
     {
         if (sockets[idx] == null) return;
@@ -94,10 +113,14 @@ public class Server
         }
         catch
         {
-            Debug.Log("socket close failed.");
             sockets[idx] = null;
             handler(new TcpEvent(TcpEventType.Disconnected, false, "disconnect failed."));
         }
+    }
+
+    private void server_stop()
+    {
+
     }
 
 }

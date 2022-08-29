@@ -30,7 +30,7 @@ public class Chat : MonoBehaviour
     {
         Screen.SetResolution(480, 270, false, 60);
         server = new Server(event_callback);
-        client = new Client();
+        client = new Client(event_callback);
     }
 
     void OnGUI()
@@ -45,7 +45,7 @@ public class Chat : MonoBehaviour
         if (GUI.Button(client_btn_rect, "CLIENT"))
         {
             is_server = false;
-            client.start(ip, port);
+            Task.Run(() => client.start(ip, port));
         }
         display_log();
         display_send_message_form();
@@ -62,16 +62,13 @@ public class Chat : MonoBehaviour
         send_message = GUI.TextField(message_field_rect, send_message, 50);
         if (GUI.Button(message_btn_rect, "SEND"))
         {
-            if (!is_server)
+            if (is_server)
             {
-                if (client.send(send_message))
-                {
-                    log_message = "message sent: " + send_message;
-                }
-                else
-                {
-                    log_message = "message sent failed!";
-                }
+                server.send(send_message);
+            }
+            else
+            {
+                client.send(send_message);
             }
         }
     }
@@ -117,12 +114,25 @@ public class Chat : MonoBehaviour
 
     private void event_callback(TcpEvent tcp_event)
     {
-        Debug.Log(tcp_event.msg);
-        log_message = tcp_event.msg;
         if (tcp_event.type == TcpEventType.Received)
         {
-            add_chat_message(tcp_event.msg);
+            if (is_server)
+            {
+                server.send(tcp_event.msg);
+            }
+            else
+            {
+                add_chat_message(tcp_event.msg);
+            }
         }
+        else if (tcp_event.type == TcpEventType.Sent)
+        {
+            if (is_server)
+            {
+                add_chat_message(tcp_event.msg);
+            }
+        }
+        log_message = tcp_event.msg;
     }
 
     private void add_chat_message(string msg)
