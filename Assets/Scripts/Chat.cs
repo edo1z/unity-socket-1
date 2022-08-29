@@ -39,7 +39,7 @@ public class Chat : MonoBehaviour
         if (GUI.Button(server_btn_rect, "SERVER"))
         {
             is_server = true;
-            Task.Run(() => server.start(ip, port));
+            Task.Run(() => server.start(port));
         }
         set_client_btn_color();
         if (GUI.Button(client_btn_rect, "CLIENT"))

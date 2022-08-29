@@ -9,9 +9,8 @@ using UnityEngine;
 
 public class Server
 {
-    private TcpListener listener;
-    private TcpClient client;
-    private NetworkStream network_stream;
+    private Socket listener = null;
+    private List<Socket> sockets = new List<Socket>();
     private TcpEventHandler handler;
 
     public Server(TcpEventHandler event_callback)
@@ -19,40 +18,87 @@ public class Server
         handler += event_callback;
     }
 
-    public void start(string ip, int port)
+    public void start(int port)
     {
-        listener = new TcpListener(IPAddress.Parse(ip), port);
-        listener.Start();
-        accept_loop();
-    }
-
-    private void accept_loop()
-    {
-        handler(new TcpEvent(TcpEventType.Listening, true, "server listening..."));
-        client = listener.AcceptTcpClient();
-        network_stream = client.GetStream();
-        string message = "";
-        while (true)
+        try
         {
-            var buffer = new byte[256];
-            var count = network_stream.Read(buffer, 0, buffer.Length);
-            if (count == 0)
-            {
-                OnDestroy();
-                Task.Run(() => accept_loop());
-                break;
-            }
-            message = Encoding.UTF8.GetString(buffer, 0, count);
-            handler(new TcpEvent(TcpEventType.Received, true, "received: " + message));
+          listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+          listener.Bind(new IPEndPoint(IPAddress.Any, port));
+          listener.Listen(1);
+          accept_receive_loop();
+        }
+        catch
+        {
+          handler(new TcpEvent(TcpEventType.Listening, false, "server start failed."));
         }
     }
 
-    private void OnDestroy()
+    private void accept_receive_loop()
     {
-        network_stream?.Dispose();
-        client?.Dispose();
-        listener?.Stop();
-        handler(new TcpEvent(TcpEventType.Destroyed, true, "server destroyed."));
+        handler(new TcpEvent(TcpEventType.Listening, true, "server listening..."));
+        while (true)
+        {
+            accept();
+            receive();
+        }
+    }
+
+    private void accept()
+    {
+        if (listener != null && listener.Poll(0, SelectMode.SelectRead))
+        {
+            sockets.Add(listener.Accept());
+            handler(new TcpEvent(TcpEventType.Connected, true, sockets.Count + " connected!"));
+        }
+    }
+
+    private void receive()
+    {
+        string msg = "";
+        for (int i = 0; i < sockets.Count; i++)
+        {
+            if (sockets[i] != null && sockets[i].Poll(0, SelectMode.SelectRead))
+            {
+                try
+                {
+                    byte[] buffer = new byte[256];
+                    int recv_size = sockets[i].Receive(buffer, buffer.Length, SocketFlags.None);
+                    if (recv_size > 0)
+                    {
+                        msg = Encoding.UTF8.GetString(buffer, 0, recv_size);
+                        handler(new TcpEvent(TcpEventType.Received, true, "received: " + msg));
+                    }
+                    else
+                    {
+                        disconnect(i);
+                    }
+                }
+                catch
+                {
+                    handler(new TcpEvent(TcpEventType.Received, false, "receive failed."));
+                    disconnect(i);
+                }
+            }
+        }
+    }
+
+    private void disconnect(int idx)
+    {
+        if (sockets[idx] == null) return;
+        try
+        {
+            sockets[idx].Shutdown(SocketShutdown.Both);
+            sockets[idx].Close();
+            sockets[idx] = null;
+            handler(new TcpEvent(TcpEventType.Disconnected, true, "disconnected!"));
+        }
+        catch
+        {
+            Debug.Log("socket close failed.");
+            sockets[idx] = null;
+            handler(new TcpEvent(TcpEventType.Disconnected, false, "disconnect failed."));
+        }
     }
 
 }
+
