@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
@@ -6,59 +7,31 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class MyTcpServer : MonoBehaviour
+public class Server
 {
-    public static string ip_address = "127.0.0.1";
-    public static int port = 5555;
-    private static TcpListener tcp_listener;
-    private static TcpClient tcp_client;
-    private static NetworkStream network_stream;
-    private static bool active = false;
-    private static string messages = string.Empty;
-    private static GUIStyle gui_style = new GUIStyle();
-    private static Rect rect = new Rect();
-    private static Color txt_color = new Color(0.2f, 0.9f, 0.2f, 1.0f);
+    private TcpListener listener;
+    private TcpClient client;
+    private NetworkStream network_stream;
+    private TcpEventHandler handler;
 
-    private void OnGUI()
+    public Server(TcpEventHandler event_callback)
     {
-        if (active)
-        {
-            gui_style.alignment = TextAnchor.MiddleCenter;
-            gui_style.fontSize = 30;
-            gui_style.normal.textColor = txt_color;
-            rect.x = Screen.width / 2;
-            rect.y = Screen.height / 2;
-            rect.width = 0;
-            rect.height = 0;
-            GUI.Label(rect, messages, gui_style);
-        }
+        handler += event_callback;
     }
 
-    private void OnMouseDown()
+    public void start(string ip, int port)
     {
-        MyTcpClient.OnInactive();
-        activate();
-        messages = "Server Start...";
+        listener = new TcpListener(IPAddress.Parse(ip), port);
+        listener.Start();
+        accept_loop();
     }
 
-    private void activate()
+    private void accept_loop()
     {
-        if (!active)
-        {
-            active = true;
-            Task.Run(() => OnProcess());
-        }
-    }
-
-    private void OnProcess()
-    {
-        var ipAddress = IPAddress.Parse(ip_address);
-        tcp_listener = new TcpListener(ipAddress, port);
-        tcp_listener.Start();
-        messages = "listening...";
-        tcp_client = tcp_listener.AcceptTcpClient();
-        messages = "connected.";
-        network_stream = tcp_client.GetStream();
+        handler(new TcpEvent(TcpEventType.Listening, true, "server listening..."));
+        client = listener.AcceptTcpClient();
+        network_stream = client.GetStream();
+        string message = "";
         while (true)
         {
             var buffer = new byte[256];
@@ -66,24 +39,20 @@ public class MyTcpServer : MonoBehaviour
             if (count == 0)
             {
                 OnDestroy();
-                Task.Run(() => OnProcess());
+                Task.Run(() => accept_loop());
                 break;
             }
-            messages = Encoding.UTF8.GetString(buffer, 0, count);
+            message = Encoding.UTF8.GetString(buffer, 0, count);
+            handler(new TcpEvent(TcpEventType.Received, true, "received: " + message));
         }
     }
 
-    private static void OnDestroy()
+    private void OnDestroy()
     {
-        messages = "server destroy.";
         network_stream?.Dispose();
-        tcp_client?.Dispose();
-        tcp_listener?.Stop();
+        client?.Dispose();
+        listener?.Stop();
+        handler(new TcpEvent(TcpEventType.Destroyed, true, "server destroyed."));
     }
 
-    public static void OnInactive()
-    {
-        OnDestroy();
-        active = false;
-    }
 }
